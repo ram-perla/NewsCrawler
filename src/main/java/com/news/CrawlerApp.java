@@ -1,5 +1,7 @@
 package com.news;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
@@ -57,11 +59,13 @@ public class CrawlerApp implements CommandLineRunner {
 			List<SyndEntry> entries = feed.getEntries();
 			Iterator<SyndEntry> it = entries.listIterator();
 			while (it.hasNext()) {
+
 				Feed newsFeed = new Feed();
 				SyndEntry entry = it.next();
 				String link = entry.getLink();
 				String urlEn = URLEncoder.encode(link, "UTF-8");
-				if (!isExisting(urlEn)) {
+//				if (!isExisting(urlEn)) {
+					System.out.println("**********************");
 					Document doc = Jsoup.connect(link).userAgent("Mozilla").timeout(0).get();
 					String titleStr = doc.title();
 					String[] titles = titleStr.split("[|]");
@@ -79,10 +83,23 @@ public class CrawlerApp implements CommandLineRunner {
 					newsFeed.setTags(getTags(doc));
 					newsFeed.setImage(getImage(entry.getDescription().getValue()));
 					newsFeed.setId(UUID.randomUUID().toString());
+					newsFeed.setHost(getHostName(link));
 					newsRepository.save(newsFeed);
-				}
+//				}
 			}
 		}
+	}
+
+	private String getHostName(String link) throws URISyntaxException {
+		String hostname = new URI(link).getHost();
+
+		if (hostname != null && hostname.startsWith("www.")) {
+			hostname = hostname.substring(4);
+		}
+		
+		int idx = hostname.lastIndexOf(".");
+		hostname = hostname.substring(0, idx);
+		return hostname;
 	}
 
 	private boolean isExisting(String link) {
