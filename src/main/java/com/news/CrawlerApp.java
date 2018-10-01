@@ -1,14 +1,17 @@
 package com.news;
 
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Optional;
+import java.util.UUID;
 
 import javax.annotation.Resource;
 
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -34,7 +37,7 @@ public class CrawlerApp implements CommandLineRunner {
 
 	@Override
 	public void run(String... args) throws Exception {
-		
+
 		String url = "https://csnews.com/rss";
 		URL feedUrl = new URL(url);
 
@@ -57,7 +60,8 @@ public class CrawlerApp implements CommandLineRunner {
 				Feed newsFeed = new Feed();
 				SyndEntry entry = it.next();
 				String link = entry.getLink();
-				if (!isExisting(link)) {
+				String urlEn = URLEncoder.encode(link, "UTF-8");
+				if (!isExisting(urlEn)) {
 					Document doc = Jsoup.connect(link).userAgent("Mozilla").timeout(0).get();
 					String titleStr = doc.title();
 					String[] titles = titleStr.split("[|]");
@@ -70,10 +74,11 @@ public class CrawlerApp implements CommandLineRunner {
 					}
 					newsFeed.setContent(doc.getElementsByTag("p").text());
 					newsFeed.setSource(link);
+					newsFeed.setSourceEn(urlEn);
 					newsFeed.setPubDate(entry.getPublishedDate());
 					newsFeed.setTags(getTags(doc));
 					newsFeed.setImage(getImage(entry.getDescription().getValue()));
-
+					newsFeed.setId(UUID.randomUUID().toString());
 					newsRepository.save(newsFeed);
 				}
 			}
@@ -82,8 +87,9 @@ public class CrawlerApp implements CommandLineRunner {
 
 	private boolean isExisting(String link) {
 		boolean flag = false;
-		Optional<Feed> news = newsRepository.findById(link);
-		if (news.isPresent()) {
+		QueryBuilder query = QueryBuilders.queryStringQuery("sourceEn:'" + link + "'");
+		Iterable<Feed> news = newsRepository.search(query);
+		if (news.iterator().hasNext()) {
 			flag = true;
 		}
 

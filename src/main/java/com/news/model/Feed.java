@@ -6,13 +6,15 @@ import java.util.Date;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 
-@Document(indexName = "news", type = "feed")
+@Document(indexName = "news104", type = "feed")
 public class Feed implements Serializable {
 
 	private static final long serialVersionUID = 6404973517362091638L;
 
 	@Id
+	private String id;
 	private String source;
+	private String sourceEn;	
 	private String title;
 	private String subTitle;
 	private String content;
@@ -74,5 +76,21 @@ public class Feed implements Serializable {
 
 	public void setSource(String source) {
 		this.source = source;
+	}
+
+	public String getId() {
+		return id;
+	}
+
+	public void setId(String id) {
+		this.id = id;
+	}
+
+	public String getSourceEn() {
+		return sourceEn;
+	}
+
+	public void setSourceEn(String sourceEn) {
+		this.sourceEn = sourceEn;
 	}
 }
