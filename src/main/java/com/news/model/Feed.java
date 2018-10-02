@@ -6,7 +6,7 @@ import java.util.Date;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 
-@Document(indexName = "news93", type = "feed")
+@Document(indexName = "news", type = "feed")
 public class Feed implements Serializable {
 
 	private static final long serialVersionUID = 6404973517362091638L;

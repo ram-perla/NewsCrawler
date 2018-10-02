@@ -12,14 +12,17 @@ import java.util.UUID;
 
 import javax.annotation.Resource;
 
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.elasticsearch.core.query.GetQuery;
 
 import com.news.model.Feed;
 import com.rometools.rome.feed.synd.SyndEntry;
@@ -32,6 +35,9 @@ public class CrawlerApp implements CommandLineRunner {
 
 	@Resource
 	private NewsRepository newsRepository;
+
+	@Value("${file.path}")
+	private String filePath;
 
 	public static void main(String[] args) {
 		SpringApplication.run(CrawlerApp.class, args);
@@ -64,8 +70,7 @@ public class CrawlerApp implements CommandLineRunner {
 				SyndEntry entry = it.next();
 				String link = entry.getLink();
 				String urlEn = URLEncoder.encode(link, "UTF-8");
-//				if (!isExisting(urlEn)) {
-					System.out.println("**********************");
+				if (!isExisting(urlEn)) {
 					Document doc = Jsoup.connect(link).userAgent("Mozilla").timeout(0).get();
 					String titleStr = doc.title();
 					String[] titles = titleStr.split("[|]");
@@ -76,16 +81,17 @@ public class CrawlerApp implements CommandLineRunner {
 						newsFeed.setTitle(titleStr);
 						newsFeed.setSubTitle(titleStr);
 					}
+					String uid = UUID.randomUUID().toString();
 					newsFeed.setContent(doc.getElementsByTag("p").text());
 					newsFeed.setSource(link);
 					newsFeed.setSourceEn(urlEn);
 					newsFeed.setPubDate(entry.getPublishedDate());
 					newsFeed.setTags(getTags(doc));
-					newsFeed.setImage(getImage(entry.getDescription().getValue()));
-					newsFeed.setId(UUID.randomUUID().toString());
+					newsFeed.setImage(getImage(entry.getDescription().getValue(), uid));
+					newsFeed.setId(uid);
 					newsFeed.setHost(getHostName(link));
 					newsRepository.save(newsFeed);
-//				}
+				}
 			}
 		}
 	}
@@ -96,7 +102,7 @@ public class CrawlerApp implements CommandLineRunner {
 		if (hostname != null && hostname.startsWith("www.")) {
 			hostname = hostname.substring(4);
 		}
-		
+
 		int idx = hostname.lastIndexOf(".");
 		hostname = hostname.substring(0, idx);
 		return hostname;
@@ -104,43 +110,43 @@ public class CrawlerApp implements CommandLineRunner {
 
 	private boolean isExisting(String link) {
 		boolean flag = false;
-		QueryBuilder query = QueryBuilders.queryStringQuery("sourceEn:'" + link + "'");
-		Iterable<Feed> news = newsRepository.search(query);
-		if (news.iterator().hasNext()) {
+		List<Feed> news = newsRepository.findBySourceEn(link);
+		if (!news.isEmpty()) {
 			flag = true;
 		}
-
 		return flag;
 	}
 
-	private String getImage(String value) {
-		String url = "";
+	private String getImage(String value, String uid) {
+		String urlStr = "";
 
 		try {
 			Document doc = Jsoup.parse(value);
-			url = doc.getElementsByTag("img").attr("src");
-			int len = url.indexOf("itok");
-			url = url.substring(0, len - 1);
+			urlStr = doc.getElementsByTag("img").attr("src");
+			int len = urlStr.indexOf("itok");
+			urlStr = urlStr.substring(0, len - 1);
 		} catch (Exception e) {
-			System.out.println("Excepting in getting Image");
+			System.out.println("Exception in getting Image");
 		}
-
-		return url;
+		return urlStr;
 	}
 
 	private String getTags(Document doc) {
 		Element element = doc.getElementById("block-relatedtopicsbeneathcontent");
 		try {
 			if (element != null) {
-				ListIterator<Element> tags = element.select("ul").attr("class", "tags").listIterator();
-
-				List<String> tagsList = new ArrayList<String>();
-				while (tags.hasNext()) {
-					tagsList.add(tags.next().text());
+				List<Element> ulElements = element.select("ul").attr("class", "tags");
+				if (!ulElements.isEmpty()) {
+					ListIterator<Element> tags = ulElements.get(0).select("li").listIterator();
+					List<String> tagsList = new ArrayList<String>();
+					while (tags.hasNext()) {
+						tagsList.add(tags.next().text());
+					}
+					return String.join(", ", tagsList);
 				}
-				return String.join(",", tagsList);
 			}
 		} catch (Exception e) {
+			e.printStackTrace();
 			System.out.println("Excepting in getting Tags");
 		}
 		return "";
