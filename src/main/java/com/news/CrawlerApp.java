@@ -1,8 +1,12 @@
 package com.news;
 
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -11,10 +15,8 @@ import java.util.ListIterator;
 import java.util.UUID;
 
 import javax.annotation.Resource;
+import javax.imageio.ImageIO;
 
-import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -22,9 +24,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.data.elasticsearch.core.query.GetQuery;
 
 import com.news.model.Feed;
+import com.rometools.rome.feed.synd.SyndCategory;
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;
@@ -39,61 +41,80 @@ public class CrawlerApp implements CommandLineRunner {
 	@Value("${file.path}")
 	private String filePath;
 
+	@Value("#{'${feed.urls}'.split(',')}")
+	private List<String> feedUrls;
+
 	public static void main(String[] args) {
 		SpringApplication.run(CrawlerApp.class, args);
 	}
 
 	@Override
 	public void run(String... args) throws Exception {
+		for (Iterator<String> iterator = feedUrls.iterator(); iterator.hasNext();) {
+			String url = iterator.next();
+			URL feedUrl = new URL(url);
 
-		String url = "https://csnews.com/rss";
-		URL feedUrl = new URL(url);
+			SyndFeedInput feedInput = new SyndFeedInput();
+			SyndFeed feed = null;
+			String xmlStr = "";
+			try {
+				feedInput.setXmlHealerOn(true);
+				feed = feedInput.build(new XmlReader(feedUrl));
+				xmlStr = feedInput.toString();
+			} catch (Exception e) {
+				e.printStackTrace();
+				System.out.println(xmlStr);
+			}
 
-		SyndFeedInput feedInput = new SyndFeedInput();
-		SyndFeed feed = null;
-		String xmlStr = "";
-		try {
-			feedInput.setXmlHealerOn(true);
-			feed = feedInput.build(new XmlReader(feedUrl));
-			xmlStr = feedInput.toString();
-		} catch (Exception e) {
-			e.printStackTrace();
-			System.out.println(xmlStr);
-		}
+			if (feed != null) {
+				List<SyndEntry> entries = feed.getEntries();
+				Iterator<SyndEntry> it = entries.listIterator();
+				while (it.hasNext()) {
 
-		if (feed != null) {
-			List<SyndEntry> entries = feed.getEntries();
-			Iterator<SyndEntry> it = entries.listIterator();
-			while (it.hasNext()) {
-
-				Feed newsFeed = new Feed();
-				SyndEntry entry = it.next();
-				String link = entry.getLink();
-				String urlEn = URLEncoder.encode(link, "UTF-8");
-				if (!isExisting(urlEn)) {
-					Document doc = Jsoup.connect(link).userAgent("Mozilla").timeout(0).get();
-					String titleStr = doc.title();
-					String[] titles = titleStr.split("[|]");
-					if (titles != null && titles.length == 2) {
-						newsFeed.setTitle(titles[0]);
-						newsFeed.setSubTitle(titles[1]);
-					} else {
-						newsFeed.setTitle(titleStr);
-						newsFeed.setSubTitle(titleStr);
+					Feed newsFeed = new Feed();
+					SyndEntry entry = it.next();
+					String link = entry.getLink();
+					String urlEn = URLEncoder.encode(link, "UTF-8");
+					if (!isExisting(urlEn)) {
+						Document doc = Jsoup.connect(link).userAgent("Mozilla").timeout(0).get();
+						String titleStr = doc.title();
+						String[] titles = titleStr.split("[|]");
+						if (titles != null && titles.length == 2) {
+							newsFeed.setTitle(titles[0]);
+							newsFeed.setSubTitle(titles[1]);
+						} else {
+							newsFeed.setTitle(titleStr);
+							newsFeed.setSubTitle(titleStr);
+						}
+						String uid = UUID.randomUUID().toString();
+						newsFeed.setContent(doc.getElementsByTag("p").text());
+						newsFeed.setUrl(link);
+						newsFeed.setUrlEn(urlEn);
+						newsFeed.setPubDate(entry.getPublishedDate());
+						List<String> tags = getTags(entry.getCategories());
+						if (tags.isEmpty()) {
+							tags = getTags(doc);
+						}
+						if (tags != null && !tags.isEmpty()) {
+							newsFeed.setTags(tags);
+						}
+						newsFeed.setImage(getImage(entry.getDescription().getValue(), uid));
+						newsFeed.setId(uid);
+						newsFeed.setSource(getHostName(link));
+						newsRepository.save(newsFeed);
 					}
-					String uid = UUID.randomUUID().toString();
-					newsFeed.setContent(doc.getElementsByTag("p").text());
-					newsFeed.setSource(link);
-					newsFeed.setSourceEn(urlEn);
-					newsFeed.setPubDate(entry.getPublishedDate());
-					newsFeed.setTags(getTags(doc));
-					newsFeed.setImage(getImage(entry.getDescription().getValue(), uid));
-					newsFeed.setId(uid);
-					newsFeed.setHost(getHostName(link));
-					newsRepository.save(newsFeed);
 				}
 			}
+
 		}
+	}
+
+	private List<String> getTags(List<SyndCategory> categories) {
+		List<String> list = new ArrayList<>();
+		for (Iterator<SyndCategory> iterator = categories.iterator(); iterator.hasNext();) {
+			list.add(iterator.next().getName());
+		}
+		return list;
 	}
 
 	private String getHostName(String link) throws URISyntaxException {
@@ -110,7 +131,7 @@ public class CrawlerApp implements CommandLineRunner {
 
 	private boolean isExisting(String link) {
 		boolean flag = false;
-		List<Feed> news = newsRepository.findBySourceEn(link);
+		List<Feed> news = newsRepository.findByUrlEn(link);
 		if (!news.isEmpty()) {
 			flag = true;
 		}
@@ -118,37 +139,45 @@ public class CrawlerApp implements CommandLineRunner {
 	}
 
 	private String getImage(String value, String uid) {
-		String urlStr = "";
+		String fileName = "noimage.png";
 
 		try {
 			Document doc = Jsoup.parse(value);
-			urlStr = doc.getElementsByTag("img").attr("src");
-			int len = urlStr.indexOf("itok");
-			urlStr = urlStr.substring(0, len - 1);
+			String urlStr = doc.getElementsByTag("img").attr("src");
+
+			URL url = new URL(urlStr);
+			URLConnection urlConn = url.openConnection();
+			urlConn.addRequestProperty("User-Agent",
+					"Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/25.0");
+			InputStream is = urlConn.getInputStream();
+			BufferedImage imBuff = ImageIO.read(is);
+			fileName = uid + ".png";
+			ImageIO.write(imBuff, "png", new File(filePath + fileName));
 		} catch (Exception e) {
+			fileName = "noimage.png";
 			System.out.println("Exception in getting Image");
 		}
-		return urlStr;
+		return fileName;
 	}
 
-	private String getTags(Document doc) {
+	private List<String> getTags(Document doc) {
 		Element element = doc.getElementById("block-relatedtopicsbeneathcontent");
+		List<String> tagsList = null;
 		try {
 			if (element != null) {
 				List<Element> ulElements = element.select("ul").attr("class", "tags");
 				if (!ulElements.isEmpty()) {
 					ListIterator<Element> tags = ulElements.get(0).select("li").listIterator();
-					List<String> tagsList = new ArrayList<String>();
+					tagsList = new ArrayList<String>();
 					while (tags.hasNext()) {
 						tagsList.add(tags.next().text());
 					}
-					return String.join(", ", tagsList);
 				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println("Excepting in getting Tags");
 		}
-		return "";
+		return tagsList;
 	}
 }

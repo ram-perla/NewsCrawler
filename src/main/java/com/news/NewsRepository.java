@@ -9,5 +9,5 @@ import com.news.model.Feed;
 
 @Repository
 public interface NewsRepository extends ElasticsearchRepository<Feed, String> {
-	List<Feed> findBySourceEn(String sourceEn);
+	List<Feed> findByUrlEn(String sourceEn);
 }

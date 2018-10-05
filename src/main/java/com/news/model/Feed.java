@@ -2,6 +2,7 @@ package com.news.model;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
@@ -13,22 +14,22 @@ public class Feed implements Serializable {
 
 	@Id
 	private String id;
-	private String source;
-	private String sourceEn;
+	private String url;
+	private String urlEn;
 	private String title;
 	private String subTitle;
 	private String content;
-	private String tags;
+	private List<String> tags;
 	private Date pubDate;
 	private String image;
-	private String host;
+	private String source;
 
-	public String getHost() {
-		return host;
+	public String getSource() {
+		return source;
 	}
 
-	public void setHost(String host) {
-		this.host = host;
+	public void setSource(String source) {
+		this.source = source;
 	}
 
 	public String getTitle() {
@@ -55,11 +56,11 @@ public class Feed implements Serializable {
 		this.content = content;
 	}
 
-	public String getTags() {
+	public List<String> getTags() {
 		return tags;
 	}
 
-	public void setTags(String tags) {
+	public void setTags(List<String> tags) {
 		this.tags = tags;
 	}
 
@@ -79,12 +80,12 @@ public class Feed implements Serializable {
 		this.image = image;
 	}
 
-	public String getSource() {
-		return source;
+	public String getUrl() {
+		return url;
 	}
 
-	public void setSource(String source) {
-		this.source = source;
+	public void setUrl(String url) {
+		this.url = url;
 	}
 
 	public String getId() {
@@ -95,11 +96,11 @@ public class Feed implements Serializable {
 		this.id = id;
 	}
 
-	public String getSourceEn() {
-		return sourceEn;
+	public String getUrlEn() {
+		return urlEn;
 	}
 
-	public void setSourceEn(String sourceEn) {
-		this.sourceEn = sourceEn;
+	public void setUrlEn(String urlEn) {
+		this.urlEn = urlEn;
 	}
 }
