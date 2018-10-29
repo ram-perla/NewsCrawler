@@ -1,0 +1,1 @@
+java -jar NewsCrawler-1.0.jar
