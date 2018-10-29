@@ -17,6 +17,8 @@ import java.util.UUID;
 import javax.annotation.Resource;
 import javax.imageio.ImageIO;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -43,9 +45,13 @@ public class CrawlerApp implements CommandLineRunner {
 
 	@Value("#{'${feed.urls}'.split(',')}")
 	private List<String> feedUrls;
+	private static final Logger LOGGER = LogManager.getLogger(CrawlerApp.class);
 
 	public static void main(String[] args) {
+		long startTime = System.currentTimeMillis();
 		SpringApplication.run(CrawlerApp.class, args);
+		long endTime = System.currentTimeMillis();
+		LOGGER.error("Time taken for indexing in (Seconds) is" + (endTime - startTime) / 1000);
 	}
 
 	@Override
