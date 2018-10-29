@@ -1,1 +1,1 @@
-java -jar NewsCrawler-1.0.jar
+java -jar target/NewsCrawler-1.0.jar
